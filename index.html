@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<title>Ussimäng Deluxe+</title>
+<style>
+    body {
+        background: #101010;
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-family: Arial, sans-serif;
+    }
+
+    #score {
+        font-size: 26px;
+        margin-bottom: 12px;
+        font-weight: bold;
+        text-shadow: 0 0 10px #2cff2c;
+    }
+
+    canvas {
+        background: linear-gradient(135deg, #0a0a0a, #111, #0c0c0c);
+        border-radius: 14px;
+        box-shadow: 0 0 25px #00ff0044;
+    }
+</style>
+</head>
+<body>
+
+<div id="score">Punktid: 0</div>
+<canvas id="game" width="600" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const grid = 25;
+let score = 0;
+
+let lastMove = 0;
+let delay = 140;
+const minDelay = 60;
+
+// ─────────────────────────────────────────────
+//  KULDS/ÕUN süsteem
+// ─────────────────────────────────────────────
+function newApple() {
+    return {
+        x: Math.floor(Math.random() * (canvas.width / grid)) * grid,
+        y: Math.floor(Math.random() * (canvas.height / grid)) * grid,
+        type: Math.random() < 0.17 ? "gold" : "red"
+    };
+}
+
+let snake = [
+    { x: 200, y: 200 },
+    { x: 175, y: 200 },
+    { x: 150, y: 200 }
+];
+
+let dx = grid;
+let dy = 0;
+
+let apple = newApple();
+
+// ─────────────────────────────────────────────
+//  Ussi keha tekstuur + visuaalparandused
+// ─────────────────────────────────────────────
+function drawSnake() {
+    snake.forEach((part, i) => {
+        const head = (i === 0);
+
+        // keha gradient (oranž varjund all, roheline üleval)
+        let g = ctx.createLinearGradient(part.x, part.y + grid, part.x, part.y);
+        if (head) {
+            g.addColorStop(0, "#2fbf2f");
+            g.addColorStop(1, "#76ff76");
+        } else {
+            g.addColorStop(0, "#1e9c4f");
+            g.addColorStop(0.5, "#33cc77");
+            g.addColorStop(1, "#57f57f");
+        }
+
+        // body texture: kerge jooneline läige
+        ctx.fillStyle = g;
+        ctx.shadowBlur = head ? 12 : 6;
+        ctx.shadowColor = head ? "#4fff4faa" : "#3aff3a55";
+
+        drawRoundRect(part.x, part.y, grid, grid, 8, g, "#0003");
+
+        ctx.shadowBlur = 0;
+
+        // silmad
+        if (head) {
+            ctx.fillStyle = "#000";
+            ctx.beginPath();
+            ctx.arc(part.x + 7, part.y + 8, 3, 0, Math.PI * 2);
+            ctx.arc(part.x + 17, part.y + 8, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // tiny shine
+            ctx.fillStyle = "#fff";
+            ctx.beginPath();
+            ctx.arc(part.x + 6, part.y + 7, 1, 0, Math.PI * 2);
+            ctx.arc(part.x + 16, part.y + 7, 1, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    });
+}
+
+// ─────────────────────────────────────────────
+//  Õunad (punane + kuldne) visuaalidega
+// ─────────────────────────────────────────────
+function drawApple() {
+    if (apple.type === "gold") drawGoldenApple();
+    else drawNormalApple();
+}
+
+function drawNormalApple() {
+    let g = ctx.createRadialGradient(
+        apple.x + 12, apple.y + 12, 2,
+        apple.x + 8, apple.y + 8, 18
+    );
+    g.addColorStop(0, "#ffadad");
+    g.addColorStop(1, "#c30000");
+
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = "#ff222288";
+
+    drawRoundRect(apple.x, apple.y, grid, grid, 9, g, "#0004");
+
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = "#fff5";
+    ctx.beginPath();
+    ctx.arc(apple.x + 16, apple.y + 10, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#5c3";
+    ctx.fillRect(apple.x + 10, apple.y - 4, 5, 9);
+}
+
+function drawGoldenApple() {
+    let g = ctx.createRadialGradient(
+        apple.x + 12, apple.y + 12, 2,
+        apple.x + 8, apple.y + 8, 17
+    );
+    g.addColorStop(0, "#fffbc1");
+    g.addColorStop(1, "#ffbf00");
+
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = "#ffd900bb";
+
+    drawRoundRect(apple.x, apple.y, grid, grid, 9, g, "#332");
+
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = "#ffffff77";
+    ctx.beginPath();
+    ctx.arc(apple.x + 16, apple.y + 10, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#ada";
+    ctx.fillRect(apple.x + 10, apple.y - 4, 5, 9);
+}
+
+// ─────────────────────────────────────────────
+// Ümar kast
+// ─────────────────────────────────────────────
+function drawRoundRect(x, y, w, h, r, fill, stroke) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+}
+
+// ─────────────────────────────────────────────
+//  GAME LOGIC
+// ─────────────────────────────────────────────
+function moveSnake() {
+    const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+    snake.unshift(head);
+
+    if (head.x === apple.x && head.y === apple.y) {
+
+        if (apple.type === "gold") score += 2;
+        else score++;
+
+        document.getElementById("score").textContent = "Punktid: " + score;
+
+        apple = newApple();
+    } else snake.pop();
+}
+
+function clearCanvas() {
+    ctx.fillStyle = "#0c0c0c";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function collision() {
+    const head = snake[0];
+
+    if (
+        head.x < 0 || head.x >= canvas.width ||
+        head.y < 0 || head.y >= canvas.height
+    ) return true;
+
+    for (let i = 1; i < snake.length; i++)
+        if (head.x === snake[i].x && head.y === snake[i].y)
+            return true;
+
+    return false;
+}
+
+function reset() {
+    alert("Mäng läbi! Punktid: " + score);
+
+    score = 0;
+    document.getElementById("score").textContent = "Punktid: 0";
+
+    snake = [
+        { x: 200, y: 200 },
+        { x: 175, y: 200 },
+        { x: 150, y: 200 }
+    ];
+
+    dx = grid;
+    dy = 0;
+    apple = newApple();
+    delay = 140;
+}
+
+function gameLoop(t) {
+
+    if (t % 10000 < 16)
+        delay = Math.max(minDelay, delay - 2);
+
+    if (t - lastMove > delay) {
+        lastMove = t;
+
+        clearCanvas();
+        moveSnake();
+        drawApple();
+        drawSnake();
+
+        if (collision()) reset();
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+// ─────────────────────────────────────────────
+//  Controls
+// ─────────────────────────────────────────────
+document.addEventListener("keydown", e => {
+    if (e.key === "ArrowUp" && dy === 0)  { dx = 0; dy = -grid; }
+    if (e.key === "ArrowDown" && dy === 0){ dx = 0; dy = grid; }
+    if (e.key === "ArrowLeft" && dx === 0){ dx = -grid; dy = 0; }
+    if (e.key === "ArrowRight" && dx === 0){ dx = grid; dy = 0; }
+});
+
+requestAnimationFrame(gameLoop);
+</script>
+
+</body>
+</html>
